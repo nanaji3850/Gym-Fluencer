@@ -7,11 +7,6 @@ function App() {
   const [file, setFile] = useState(null);
   const [source, setSource] = useState("file");
   const [summary, setSummary] = useState(null);
-  const [workoutData, setWorkoutData] = useState({
-    workoutType: "N/A",
-    reps: 0,
-    calories: 0,
-  });
 
   const handleFileChange = (e) => setFile(e.target.files[0]);
   const handleSourceChange = (e) => setSource(e.target.value);
