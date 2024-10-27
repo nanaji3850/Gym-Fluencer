@@ -162,10 +162,12 @@
 
 .summary-item {
   margin: 10px 0;
+  color: black;
 }
 
 .summary-heading {
-  font-weight: bold; /* Bold for the summary heading */
+  font-weight: bold;
+  color: black; /* Bold for the summary heading */
 }
 
 @media (min-width: 768px) {
