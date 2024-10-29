@@ -9,10 +9,7 @@ app = Flask(__name__)
 CORS(app)
 
 
-# Add the home route
-@app.route('/')
-def home():
-    return "Welcome to the Workout Counter API", 200
+
 
 # Initialize MediaPipe Pose
 mp_pose = mp.solutions.pose
