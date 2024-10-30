@@ -1,5 +1,7 @@
+import os
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_socketio import SocketIO, emit  # Import SocketIO
 import cv2
 import mediapipe as mp
 import math
@@ -7,7 +9,9 @@ import numpy as np
 
 app = Flask(__name__)
 CORS(app)
-
+socketio = SocketIO(app, cors_allowed_origins="*")  # Initialize SocketIO
+UPLOAD_FOLDER = './uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 
 
@@ -71,10 +75,10 @@ def classify_workout(landmarks):
     knee_avg_y = (left_knee.y + right_knee.y) / 2
 
     knee_angle = calculate_angle(
-        [left_hip.x, left_hip.y],
-        [left_knee.x, left_knee.y],
-        [left_ankle.x, left_ankle.y]
-    )
+    [left_hip.x, left_hip.y],
+    [left_knee.x, left_knee.y],
+    [left_ankle.x, left_ankle.y]
+)
 
     if shoulder_avg_y < knee_avg_y and abs(shoulder_avg_y - hip_avg_y) < 0.1:
         workout_type = 'Push-ups'
@@ -92,7 +96,7 @@ def classify_workout(landmarks):
         if workout_started:
             workout_type = None
 
-# Function to count reps based on the workout type and calculating calories burned
+    # Function to count reps based on the workout type and calculating calories burned
 def count_reps(landmarks,workout_type):
     global rep_count, down, calories_burned
 
@@ -152,11 +156,11 @@ def count_reps(landmarks,workout_type):
 
     elif workout_type == 'Deadlifts':
         hip = [landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP.value].x,
-               landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP.value].y]
+            landmarks.landmark[mp_pose.PoseLandmark.LEFT_HIP.value].y]
         knee = [landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE.value].x,
                 landmarks.landmark[mp_pose.PoseLandmark.LEFT_KNEE.value].y]
         ankle = [landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE.value].x,
-                 landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
+                landmarks.landmark[mp_pose.PoseLandmark.LEFT_ANKLE.value].y]
 
         angle = calculate_angle(hip, knee, ankle)
 
@@ -167,11 +171,35 @@ def count_reps(landmarks,workout_type):
             down = True
             calories_burned[workout_type] += CALORIES_PER_REP[workout_type]
 
+@socketio.on('stop_workout')
+def handle_stop_workout():
+    global stop_workout_flag
+    stop_workout_flag = True
+
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    global rep_count, workout_type, calories_burned, down, workout_started
-    source = request.form.get('source')
-    
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No selected file"}), 400
+
+    # Save the file to the uploads folder
+    filename = file.filename
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(file_path)
+
+    # Return the filename for further processing
+    return jsonify({"filename": filename}), 200
+
+@socketio.on('start_workout')
+def handle_start_workout(data):
+    source = data.get('source')
+    global rep_count, workout_type, calories_burned, down, workout_started, stop_workout_flag
+    # (Reset counters and variables here)
+
     # Reset counters and state variables for a fresh start
     rep_count = {
         'Push-ups': 0,
@@ -188,33 +216,32 @@ def upload_file():
     down = False
     workout_type = None
     workout_started = False
+    stop_workout_flag = False
 
+
+    
     try:
         if source == "0":
-            # Live camera capture
             cap = cv2.VideoCapture(0)
         else:
-            # File upload
-            if 'file' not in request.files:
-                return "No file part in request", 400
+            filename = data.get('filename')
+            file_path = f'./uploads/{filename}'
+            print(f"File path for uploaded video: {file_path}")
 
-            file = request.files['file']
-            
-            # If no file was selected
-            if file.filename == '':
-                return "No selected file", 400
-            
-            # Define the file path and save it
-            file_path = './uploads/' + file.filename
-            file.save(file_path)
+            if not os.path.exists(file_path):
+                print(f"Error: File {file_path} not found.")
+                emit('error', {'message': 'File not found'})
+                return
+          
             cap = cv2.VideoCapture(file_path)
+            
 
-        # Open the video and process frames
-        while cap.isOpened():
+        while cap.isOpened() and not stop_workout_flag:
             ret, frame = cap.read()
-            if not ret:
+            if not ret or stop_workout_flag:
                 break
 
+            # (Pose processing code here: calculating landmarks, classifying workout, counting reps)
             # Convert the frame to RGB
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
@@ -250,24 +277,27 @@ def upload_file():
             # Show the processed image
             cv2.imshow('Workout Counter', image)
 
-            # Break the loop on 'q' key press
-            if cv2.waitKey(10) & 0xFF == ord('q'):
-                break
 
-        # Release the capture when done
+            
+            # Encode frame and send it to frontend via WebSocket
+            _, buffer = cv2.imencode('.jpg', image)
+            frame_data = buffer.tobytes()
+            emit('frame', frame_data)  # Send frame data to frontend
+
+            
+
         cap.release()
         cv2.destroyAllWindows()
-
 
         # Generate a summary
         summary = {workout: {'reps': reps, 'calories': calories_burned[workout]} 
                    for workout, reps in rep_count.items() if reps > 0}
         
-        return jsonify(summary)
-    
+        emit('summary', summary)  # Emit final summary via WebSocket
+
     except Exception as e:
         print(f"Error: {e}")
-        return "An error occurred during processing", 500
 
+# Run the SocketIO app
 if __name__ == '__main__':
-    app.run(debug=True)
+    socketio.run(app, debug=True)
