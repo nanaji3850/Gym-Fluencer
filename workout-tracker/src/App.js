@@ -4,7 +4,7 @@ import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
 
-const socket = io("http://localhost:5000"); // Connect to Flask-SocketIO
+const socket = io("https://gym-fluencer.onrender.com"); // Connect to Flask-SocketIO
 
 function App() {
   const [file, setFile] = useState(null);
@@ -49,7 +49,7 @@ function App() {
     formData.append("file", file);
 
     axios
-      .post("http://localhost:5000/upload", formData)
+      .post("https://gym-fluencer.onrender.com/upload", formData)
       .then((response) => {
         console.log("File uploaded successfully");
         socket.emit("start_workout", {
