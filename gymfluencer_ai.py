@@ -9,7 +9,7 @@ import numpy as np
 
 app = Flask(__name__)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")  # Initialize SocketIO
+socketio = SocketIO(app, cors_allowed_origins="*", ping_interval=25000, ping_timeout=60000)  # Initialize SocketIO
 UPLOAD_FOLDER = './uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 

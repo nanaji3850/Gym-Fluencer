@@ -4,7 +4,10 @@ import axios from "axios";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "./App.css";
 
-const socket = io("https://gym-fluencer.onrender.com"); // Connect to Flask-SocketIO
+const socket = io("https://gym-fluencer.onrender.com", {
+  pingInterval: 25000, // Send a ping every 25 seconds
+  pingTimeout: 60000, // Allow 60 seconds for a pong response before closing
+}); // Connect to Flask-SocketIO
 
 function App() {
   const [file, setFile] = useState(null);
