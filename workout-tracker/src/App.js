@@ -61,7 +61,11 @@ function App() {
         console.error("Error uploading file:", error);
       });
   };
-  const handleSourceChange = (e) => setSource(e.target.value);
+  const handleSourceChange = (e) => {
+    setSource(e.target.value);
+    setFile(null); // Clear the selected file if changing source
+    setError(""); // Clear any previous errors
+  };
 
   const handleUpload = () => {
     if (source === "file") {
@@ -157,6 +161,8 @@ function App() {
                 onChange={handleFileChange}
               />
             )}
+            {error && <p className="text-danger">{error}</p>}{" "}
+            {/* Displaying error */}
             <button
               className="btn btn-success start-button"
               onClick={handleUpload}
